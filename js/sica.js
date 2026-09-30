@@ -4791,15 +4791,6 @@ VISTAS.guias = function(){
   const uds=q2(GU.lineas.reduce((a,l)=>a+nn(l.recib),0));
 
   return `
-  ${expl("Cómo se carga el taco de guías",[
-    "Llena la cabecera una vez, escribe artículo y cantidad, y dale <b>Enter</b>: la línea se agrega y el cursor vuelve arriba para la siguiente.",
-    "Si el artículo <b>no existe todavía</b>, el sistema te ofrece crearlo ahí mismo sin perder lo que llevas escrito.",
-    "Lo que crees así queda en el <b>estante Z</b> (sin ubicar). Cuando hagas el inventario le das su sitio definitivo.",
-    "Al terminar cada guía dale <b>Guardar y empezar otra</b>: se conserva el proveedor y la fecha para la siguiente del mismo taco.",
-    "Lo que vas escribiendo <b>se guarda solo en este equipo</b>. Si el sistema se cuelga o se corta la luz, al volver la guía sigue ahí.",
-    "Cuando el encargado te pida cuentas, dale a <b>Resumen en PDF</b>: baja un archivo con todo lo que tipeaste, para mandárselo o cotejarlo contra el taco de papeles.",
-    "Si a una guía ya guardada te faltó un artículo, <b>no la vuelvas a tipear</b>: búscala abajo y dale <b>+ Artículo</b>."
-  ])}
 
   ${!hayCat?`<div class="aviso-caja"><b>El catálogo está vacío y no pasa nada</b>
     Empieza a cargar la primera guía igual. Cada artículo que no exista lo vas creando sobre la marcha,
