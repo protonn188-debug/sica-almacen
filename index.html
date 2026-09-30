@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es-PE" data-theme-note="tokens below">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SICA · Almacén San Francisco · JVC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1D3F7C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SICA">
+<link rel="apple-touch-icon" href="icono-180.png">
+<link rel="icon" href="icono-180.png">
+<link rel="stylesheet" href="css/sica.css">
+</head>
+<body>
+
+<!-- ====================================================================
+     PANTALLA DE ENTRADA — lo primero que se ve mientras no hay sesión
+     ==================================================================== -->
+<div class="entrada" id="entrada" hidden>
+  <div class="en-caja">
+    <div class="en-marca">
+      <svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true"><g fill="#fff">
+        <rect x="0" y="21" width="3.4" height="9"/><rect x="4.3" y="14" width="3.4" height="16"/>
+        <rect x="8.6" y="9" width="3.4" height="21"/><rect x="12.9" y="16" width="2" height="14" opacity=".55"/>
+        <rect x="15.8" y="3" width="4.6" height="27"/><rect x="21.2" y="0" width="3.4" height="30"/>
+        <rect x="25.5" y="6" width="3.4" height="24"/><rect x="29.8" y="17" width="3.4" height="13"/>
+      </g></svg>
+      <div><b>SICA</b><span>Kardex de almacén de obra</span></div>
+    </div>
+    <div class="en-obra"><b id="en-obra">—</b><span id="en-empresa">—</span></div>
+
+    <div class="aviso-caja" id="en-aviso" hidden></div>
+
+    <form class="en-form" id="en-form">
+      <div class="campo">
+        <label for="en-correo">CORREO</label>
+        <input type="email" id="en-correo" autocomplete="username" required placeholder="jacko@jvc.pe">
+      </div>
+      <div class="campo">
+        <label for="en-clave">CONTRASEÑA</label>
+        <input type="password" id="en-clave" autocomplete="current-password" required>
+      </div>
+      <p class="en-error" id="en-error" hidden></p>
+      <button class="b" id="en-btn" type="submit">Entrar</button>
+      <p class="nota">Si no te acuerdas de la contraseña, el administrador te la cambia desde Supabase.</p>
+    </form>
+
+    <div class="en-solo" id="en-solo" hidden>
+      <button class="b" data-entrar-solo>Usar en este equipo</button>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="rail no-imp">
+    <div class="marca">
+      <svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true">
+        <g fill="#fff">
+          <rect x="0"  y="21" width="3.4" height="9"/>
+          <rect x="4.3" y="14" width="3.4" height="16"/>
+          <rect x="8.6" y="9"  width="3.4" height="21"/>
+          <rect x="12.9" y="16" width="2"  height="14" opacity=".55"/>
+          <rect x="15.8" y="3"  width="4.6" height="27"/>
+          <rect x="21.2" y="0"  width="3.4" height="30"/>
+          <rect x="25.5" y="6"  width="3.4" height="24"/>
+          <rect x="29.8" y="17" width="3.4" height="13"/>
+        </g>
+      </svg>
+      <div><b>SICA</b><span>Kardex de almacén de obra</span></div>
+    </div>
+    <div class="obra-rail">
+      <b id="rail-obra">Tránsito peatonal</b>
+      <span id="rail-cp">C.P. San Francisco</span><br><i id="rail-cui">CUI 2653411</i>
+    </div>
+    <nav class="nav" data-group="MOVIMIENTO DEL DÍA" id="nav1"></nav>
+    <nav class="nav" data-group="CONTROL Y CUADRE" id="nav2"></nav>
+    <nav class="nav" data-group="PAPELES" id="nav3"></nav>
+    <nav class="nav" data-group="MAESTROS" id="nav4"></nav>
+    <div class="sync" id="sync"><span class="luz"></span><span id="sync-tx">Conectando…</span></div>
+
+  </aside>
+
+  <main class="hoja">
+    <header class="barra no-imp">
+      <div>
+        <h1 id="t-titulo">Tablero</h1>
+        <p id="t-sub"></p>
+        <p class="vlinea">Versión <b id="ver-n">—</b> ·
+          <button class="txt" data-acc="revisar">revisar el sistema</button> ·
+          <button class="txt" data-acc="recargar">traer la última</button></p>
+      </div>
+      <div class="der" id="t-acciones"></div>
+      <div class="quien" id="quien"></div>
+    </header>
+    <div class="cuerpo" id="vista"></div>
+    <div class="cuerpo" id="impresion"></div>
+  </main>
+</div>
+
+<nav class="mtabs no-imp" id="mtabs"></nav>
+
+<div class="velo no-imp" id="velo" hidden role="dialog" aria-modal="true" aria-labelledby="m-tit">
+  <div class="modal">
+    <header><h3 id="m-tit">—</h3><button class="x" id="m-x" aria-label="Cerrar">&times;</button></header>
+    <div class="mbody" id="m-body"></div>
+    <div class="mpie" id="m-pie"></div>
+  </div>
+</div>
+
+<div class="toast no-imp" id="toast" hidden role="status" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/nube.js"></script>
+<script src="js/sica.js"></script>
+</body>
+</html>

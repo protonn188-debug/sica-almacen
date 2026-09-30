@@ -1,0 +1,15 @@
+{
+  "name": "SICA · Almacén de obra",
+  "short_name": "SICA",
+  "description": "Kardex de almacén de obra — JVC Consultores y Ejecutores E.I.R.L.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1D3F7C",
+  "theme_color": "#1D3F7C",
+  "lang": "es-PE",
+  "icons": [
+    { "src": "icono-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

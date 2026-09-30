@@ -1,0 +1,8 @@
+{
+  "files.eol": "\n",
+  "editor.wordWrap": "on",
+  "editor.tabSize": 2,
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 1000,
+  "workbench.startupEditor": "readme"
+}

@@ -1,0 +1,9 @@
+# Cosas que la Mac deja tiradas y no tienen que subir
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+
+# Si algún día usas Node
+node_modules/
