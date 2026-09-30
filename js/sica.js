@@ -895,9 +895,6 @@ VISTAS.tablero = function(){
 
   if(sinCat){
     return expl("Primero hay que levantar el catálogo",[
-      "El kardex no puede arrancar sin saber qué guarda el almacén. Recorre estante por estante y ve creando cada artículo en <b>Catálogo</b>.",
-      "Si son muchos, en <b>Ajustes</b> puedes descargar una plantilla, llenarla en Numbers o Excel y subirla de vuelta.",
-      "Después registra el <b>SALDO INICIAL</b> de cada uno: lo que ya hay hoy en el almacén."
     ])+`<div class="bloque"><div class="pad" style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="b" data-ir="catalogo">Ir al catálogo</button>
       <button class="b sec" data-ir="ajustes">Descargar la plantilla</button>
@@ -1030,11 +1027,6 @@ VISTAS.entradas = function(){
   const delMes = IX.movs.filter(m=>m.sentido==="E" && mesDe(m.fecha)===mes);
   const val = q2(delMes.reduce((s,m)=>s+importeMov(m),0));
   return `
-  ${expl("Entradas al almacén",[
-    "Aquí entra <b>todo</b> lo que llega: compras con guía de remisión, herramienta que vuelve de un préstamo, y el saldo que ya existía cuando se abrió el kardex.",
-    "Es lo único que <b>suma</b> saldo. Si algo está en el almacén y no fue registrado como entrada, el kardex nunca va a cuadrar.",
-    "Contrasta siempre <b>lo que dice la guía</b> contra <b>lo que de verdad bajaron</b>. La diferencia queda anotada y se puede reclamar."
-  ])}
   <div class="bloque">
     <h2>ENTRADAS REGISTRADAS<span class="der">
       <span class="et t">${delMes.length} en ${nomMes(mes)}</span>
@@ -1056,12 +1048,6 @@ VISTAS.salidas = function(){
   const delMes = IX.movs.filter(m=>m.sentido==="S" && mesDe(m.fecha)===mes);
   const conVale = delMes.filter(m=>m.tipoDoc==="VALE").length;
   return `
-  ${expl("Salidas del almacén",[
-    "Aquí se registra todo lo que sale, con vale firmado o solo anotado en el cuaderno del almacén.",
-    "<b>AUTORIZA</b> es quien manda a pedir: el maestro de obra, el capataz o el residente que ordenó el pedido y firma el vale.",
-    "<b>ENTREGADO A</b> es quien vino físicamente al almacén a llevárselo. Esa es la persona que responde si la herramienta no vuelve.",
-    "Si el motivo es <b>PRÉSTAMO</b> o <b>REPARACIÓN</b>, queda pendiente en la pantalla de Préstamos hasta que se registre la devolución."
-  ])}
   <div class="bloque">
     <h2>SALIDAS REGISTRADAS<span class="der">
       <span class="et t">${delMes.length} en ${nomMes(mes)}</span>
@@ -1082,11 +1068,6 @@ VISTAS.prestamos = function(){
   const porPersona={};
   pr.forEach(p=>{ const k=p.m.persona||"—"; (porPersona[k]=porPersona[k]||[]).push(p); });
   return `
-  ${expl("Lo que salió y todavía no vuelve",[
-    "Aparece aquí cada artículo que salió con motivo <b>PRÉSTAMO</b> o <b>REPARACIÓN</b> y del que todavía falta parte o todo.",
-    "Al registrar la devolución se crea una <b>entrada</b> con motivo DEVOLUCIÓN y el saldo vuelve a subir solo.",
-    "Si una herramienta se perdió o se rompió y no va a volver, usa <b>Dar por perdida</b>. Eso cierra el pendiente pero <b>no</b> devuelve el saldo, porque físicamente ya no está."
-  ])}
   ${!pr.length ? `<div class="bloque"><div class="pad">${vacio("Nada pendiente","Todo lo que salió prestado ya regresó al almacén.")}</div></div>` :
   Object.keys(porPersona).sort((a,b)=>nom(a)<nom(b)?-1:1).map(k=>{
     const g=porPersona[k];
@@ -1184,11 +1165,6 @@ VISTAS.stock = function(){
   }).filter(x=>x.n>0);
 
   return `
-  ${expl("Cómo se calcula este saldo",[
-    "<b>Saldo inicial + entradas − salidas.</b> No se guarda a mano en ninguna parte: se vuelve a calcular cada vez que abres la pantalla.",
-    "Por eso el kardex nunca puede quedar desfasado. Si un número está mal, es porque falta registrar un documento, no porque el sistema se haya equivocado.",
-    "<b>Fuera</b> es lo que salió prestado y todavía no vuelve. Ya está restado del saldo: físicamente no está en el almacén."
-  ])}
   ${porAlm.length>1?`<div class="kcab">${porAlm.map(x=>
     `<div><span>${x.a?esc(x.a):"SIN ALMACÉN ASIGNADO"}</span><b${x.a?"":' class="rojo"'}>${x.n}</b>
       <i>artículos${x.val?" · "+soles(x.val):""}</i></div>`).join("")}</div>`:""}
@@ -1247,9 +1223,7 @@ VISTAS.kardex = function(){
   </div></div>`;
 
   if(!KX.cod) return expl("Kardex de un artículo",[
-    "Muestra, para un solo artículo, <b>todos</b> los movimientos en orden, con el saldo corrido después de cada uno.",
-    "Es la hoja que se presenta cuando alguien pregunta «¿dónde se fue todo el cemento?».",
-    "Cada línea dice con qué documento se movió, quién lo mandó a pedir, quién se lo llevó y a qué frente fue."
+    
   ])+sel;
 
   const it=cat(KX.cod);
@@ -1432,13 +1406,6 @@ VISTAS.diario = function(){
   const av=avanceConteo(ym);
 
   return `
-  ${expl("Qué es esta hoja",[
-    "Es el cuadro de control del mes: <b>cada artículo contra cada día</b>. La fila <b>ENT</b> es lo que entró ese día y la fila <b>SAL</b> lo que salió.",
-    "<b>SALDO INI</b> es lo que había al cerrar el mes anterior. <b>SALDO</b> al final es inicial + entradas − salidas.",
-    "<b>CONTEO REAL</b> lo llenas tú cuando cuentas físicamente en el almacén. La columna <b>DIF</b> te dice al instante si cuadra.",
-    "Los domingos salen sombreados. Si un día hay movimiento y no debería haberlo, salta a la vista.",
-    "Para contar, elige el <b>almacén</b> arriba y saca la <b>hoja de conteo</b>: sale piso por piso y estante por estante, en el orden en que se camina."
-  ])}
 
   ${av.length?`<div class="tarjetas">
     ${av.map(x=>{ const falta=x.total-x.contados, listo=falta===0;
@@ -1518,12 +1485,6 @@ VISTAS.conteo = function(){
   if(!CT.alm){
     const av=avanceConteo(ym);
     return `
-    ${expl("Cómo se hace el inventario",[
-      "Elige <b>un piso</b> y el sistema te lo abre en el orden en que se camina: estante por estante.",
-      "Vas escribiendo lo que <b>de verdad hay</b> en cada casillero. Con <b>Enter</b> saltas al siguiente.",
-      "Si encuentras algo que <b>no está en la lista</b>, lo agregas ahí mismo sin salir de la pantalla.",
-      "Al terminar, el sistema te muestra las diferencias y <b>ajusta el saldo</b> con un acta firmada."
-    ])}
     <div class="bloque"><h2>DE QUÉ MES ES ESTE CONTEO</h2><div class="pad">
       <div class="campos"><div class="campo" style="max-width:280px"><label for="ct-mes">MES</label>
         <select id="ct-mes">${opts(meses.map(x=>({v:x,t:nomMes(x)})),ym,false)}</select>
