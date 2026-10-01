@@ -357,6 +357,8 @@ table.lin .uni{font-family:var(--f-mono); font-size:13.5px; color:var(--texto-2)
   .combo-op .c{order:2} .combo-op .s{order:3; margin-left:auto}
 }
 
+input.fijo{background:var(--papel-2); color:var(--texto-2); font-weight:700; cursor:default}
+
 /* matriz CONTROL DIARIO */
 .mz-env{overflow:auto; max-height:72vh; border:1px solid var(--regla); border-radius:var(--r); background:var(--papel); -webkit-overflow-scrolling:touch}
 table.mz{border-collapse:separate; border-spacing:0; font-size:13px; font-family:var(--f-mono)}

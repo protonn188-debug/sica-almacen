@@ -64,7 +64,7 @@ const TDOC_S = ["VALE","CUA. ALM.","NOTA DE SALIDA","ACTA DE RECONTEO"];
 
 /* Sube cada vez que se publica: sirve para saber si el equipo está viendo
    la última versión o una guardada en la memoria del navegador. */
-const VERSION = "27 · 01/10/2026 · web";
+const VERSION = "28 · 01/10/2026 · web";
 function toast(msg,mal){
   const t=$("#toast"); t.textContent=msg; t.hidden=false; t.classList.toggle("mal",!!mal);
   clearTimeout(toast._t); toast._t=setTimeout(()=>{t.hidden=true},3800);
@@ -457,6 +457,34 @@ function engancharCombos(raiz){
   });
 }
 
+/* ---------- la salida del almacén ----------------------------------------
+   Las salidas las firma siempre el mismo papel (NOTA DE SALIDA) y las
+   autoriza siempre la misma gente, así que no tiene sentido preguntarlo
+   cada vez: el sistema lo pone y el almacenero solo escribe lo que cambia. */
+
+/** El siguiente número de nota de salida. Se saca de las notas que ya están
+    cargadas, no de un contador aparte: así no se desacomoda si se anula una
+    o si se carga desde otro equipo. */
+function proxNotaSalida(){
+  let max=0;
+  IX.movs.forEach(m=>{
+    if(m.sentido!=="S" || m.tipoDoc!=="NOTA DE SALIDA") return;
+    const n=parseInt(String(m.nroDoc||"").replace(/\D/g,""),10);
+    if(n>max) max=n;
+  });
+  return String(max+1).padStart(3,"0");
+}
+
+/** Quién puede autorizar una salida: el residente y el maestro de obra, nadie
+    más. Si no hubiera ninguno cargado se cae a la lista de siempre, para no
+    dejar al almacenero sin poder despachar. */
+const CARGOS_SALIDA = ["Residente de obra","Maestro de obra"];
+function autorizanSalida(){
+  const l = activos().filter(p=>CARGOS_SALIDA.includes(p.cargo));
+  return l.length ? l : autorizantes();
+}
+
+
 /* ---------- modal ---------- */
 function modal(tit,body,botones,ancho){
   $("#m-tit").textContent=tit; $("#m-body").innerHTML=body;
@@ -772,22 +800,19 @@ function formMov(sentido, movId, prefill){
   LIN = (base.items||[]).map(l=>Object.assign({},l));
   if(!LIN.length) LIN=[{cod:"",cant:"",precio:"",guia:""}];
 
-  const numSug = esE ? "" : (base.tipoDoc==="VALE" ? "V-"+String(S.meta.proxVale||21).padStart(4,"0")
-                                                   : "CA-"+String(S.meta.proxCua||1).padStart(4,"0"));
+  /* en una salida el número lo pone el sistema; en una que ya está guardada se respeta el suyo */
+  const tdocS  = (m && m.tipoDoc) ? m.tipoDoc : "NOTA DE SALIDA";
+  const numSug = esE ? "" : (m ? "" : proxNotaSalida());
 
   const cuerpo = `
   <input type="hidden" id="f-sentido" value="${sentido}">
   <input type="hidden" id="f-id" value="${m?esc(m.id):""}">
   <input type="hidden" id="f-ref" value="${esc(base.ref||"")}">
 
-  ${expl(esE?"Qué se registra aquí":"Qué se registra aquí", esE?[
+  ${!esE ? "" : expl("Qué se registra aquí",[
     "Todo lo que <b>entra</b> al almacén: compras que llegan, herramienta que vuelve de un préstamo, o el saldo que ya había cuando se abrió el kardex.",
     "Lo que escribas aquí <b>suma</b> al saldo de cada artículo.",
     "Si la guía dice 100 bolsas y solo bajaron 98, escribe 100 en <i>Según guía</i> y 98 en <i>Recibido</i>. El sistema deja anotada la diferencia."
-  ]:[
-    "Todo lo que <b>sale</b> del almacén: material que se consume, herramienta que se presta, cosas que se devuelven o se envían.",
-    "Lo que escribas aquí <b>resta</b> del saldo de cada artículo.",
-    "Si el motivo es <b>PRÉSTAMO</b> o <b>REPARACIÓN</b>, el artículo queda marcado como pendiente hasta que alguien registre su devolución."
   ])}
 
   <div class="bloque"><h2>1 · EL PAPEL</h2><div class="pad">
@@ -798,18 +823,22 @@ function formMov(sentido, movId, prefill){
         `<input type="time" id="f-hora" value="${esc(base.hora||ahora())}">`)}
       ${campo("f-motivo","MOTIVO","Por qué se movió. Es la columna que después explica el saldo.",
         `<select id="f-motivo">${opts((esE?MOT_E:MOT_S).map(o=>({v:o.v,t:o.t})),base.motivo,false)}</select>`)}
-      ${campo("f-tipodoc","TIPO DE DOCUMENTO", esE
-        ? "Con qué papel llegó: G/R es guía de remisión."
-        : "VALE si el maestro mandó un vale firmado. CUA. ALM. si por ahora solo se anota en el cuaderno del almacén.",
-        `<select id="f-tipodoc">${opts(esE?TDOC_E:TDOC_S,base.tipoDoc,false)}</select>`)}
-      ${campo("f-nrodoc","N° DE DOCUMENTO","El número que está impreso o escrito en el papel.",
-        `<input id="f-nrodoc" class="mono" value="${esc(base.nroDoc|| numSug)}" placeholder="${esE?"001-000123":"V-0021"}">`)}
+      ${esE
+        ? campo("f-tipodoc","TIPO DE DOCUMENTO","Con qué papel llegó: G/R es guía de remisión.",
+            `<select id="f-tipodoc">${opts(TDOC_E,base.tipoDoc,false)}</select>`)
+        : campo("f-tipodoc-v","TIPO DE DOCUMENTO","Todas las salidas se registran con nota de salida.",
+            `<input id="f-tipodoc-v" value="${esc(tdocS)}" readonly tabindex="-1" class="fijo">
+             <input type="hidden" id="f-tipodoc" value="${esc(tdocS)}">`)}
+      ${campo("f-nrodoc","N° DE DOCUMENTO", esE
+        ? "El número que está impreso o escrito en el papel."
+        : "Sale solo, siguiendo la cuenta de la última nota. Cámbialo únicamente si el papel trae otro número.",
+        `<input id="f-nrodoc" class="mono" value="${esc(base.nroDoc|| numSug)}" placeholder="${esE?"001-000123":"001"}">`)}
       ${esE?campo("f-nrodoc2","N° DE BOLETA O FACTURA","El comprobante que vino junto con la guía. Opcional.",
         `<input id="f-nrodoc2" class="mono" value="${esc(base.nroDoc2||"")}" placeholder="F001-00456">`):""}
       ${campo("f-contra", esE?"PROVEEDOR O DE DÓNDE VIENE":"DESTINO",
         esE?"Quién lo trajo: la ferretería, la empresa, u otra obra.":"A dónde va: la obra misma, otro frente, el taller, el proveedor.",
         `<input id="f-contra" list="dl-${esE?"proveedores":"destinos"}" value="${esc(base.contra||(esE?"":S.meta.cp||""))}" placeholder="${esE?"Aceros Arequipa":"Obra San Francisco"}">`)}
-      ${campo("f-area","FRENTE O ÁREA DE TRABAJO","En qué parte de la obra se va a usar. Por ejemplo: vaciado de vereda, encofrado, mezcladora.",
+      ${!esE ? "" : campo("f-area","FRENTE O ÁREA DE TRABAJO","En qué parte de la obra se va a usar. Por ejemplo: vaciado de vereda, encofrado, mezcladora.",
         `<input id="f-area" list="dl-areas" value="${esc(base.area||"")}" placeholder="Vaciado de vereda tramo 2">`)}
     </div>
 
@@ -817,12 +846,16 @@ function formMov(sentido, movId, prefill){
 
     <div class="campos">
       ${campo("f-autoriza","AUTORIZA — quién manda a pedir",
-        "La persona que ordenó el pedido y firma el vale. Normalmente el maestro de obra, el capataz o el residente. <b>No</b> es quien viene a recogerlo.",
-        `<select id="f-autoriza">${optPersonal(base.autoriza,autorizantes())}</select>`)}
-      ${campo("f-persona", esE?"RECIBIÓ Y DESCARGÓ — quién bajó la carga":"ENTREGADO A — quién vino a llevárselo",
-        esE?"La persona de la obra que estuvo presente cuando bajaron el material y lo contó."
-           :"La persona que en carne y hueso se paró en el almacén y se llevó las cosas. Es quien responde si no vuelven.",
-        `<select id="f-persona">${optPersonal(base.persona)}</select>`)}
+        esE?"La persona que ordenó el pedido. Normalmente el maestro de obra, el capataz o el residente."
+           :"Solo el residente o el maestro de obra pueden autorizar una salida. <b>No</b> es quien viene a recogerla.",
+        `<select id="f-autoriza">${optPersonal(base.autoriza, esE?autorizantes():autorizanSalida())}</select>`)}
+      ${esE
+        ? campo("f-persona","RECIBIÓ Y DESCARGÓ — quién bajó la carga",
+            "La persona de la obra que estuvo presente cuando bajaron el material y lo contó.",
+            `<select id="f-persona">${optPersonal(base.persona)}</select>`)
+        : campo("f-persona","ENTREGADO A — quién vino a llevárselo",
+            "Escribe el nombre de quien se paró en el almacén y se llevó las cosas. Es quien responde si no vuelven. Si ya está en el sistema aparece al escribir; si es nuevo, se crea solo.",
+            `<input id="f-persona" list="dl-personas" value="${esc(base.persona?nom(base.persona,""):"")}" placeholder="Nombre y apellido">`)}
       ${campo("f-almacenero","ALMACENERO QUE ATENDIÓ","Quién del almacén hizo el despacho o la recepción.",
         `<input id="f-almacenero" value="${esc(base.almacenero||S.meta.almacenero||"")}">`)}
     </div>
@@ -837,7 +870,7 @@ function formMov(sentido, movId, prefill){
     <p class="nota" style="margin:0 0 12px">Agrega una fila por cada artículo distinto. Si el mismo vale lleva cemento y clavos, van dos filas.</p>
     <div id="zona-lineas">${lineasHTML(sentido)}</div>
   </div></div>
-  ${dl("areas")}${dl("proveedores")}${dl("destinos")}`;
+  ${dl("areas")}${dl("proveedores")}${dl("destinos")}${esE?"":dlPersonas()}`;
 
   modal(m?("Editar "+(esE?"entrada":"salida")):(esE?"Registrar entrada al almacén":"Registrar salida del almacén"), cuerpo, [
     {t:"Cancelar",clase:"sec",fn:cerrar},
@@ -846,13 +879,6 @@ function formMov(sentido, movId, prefill){
 
   const sel=$("#f-motivo");
   if(sel) sel.onchange=()=>{ const o=(esE?MOT_E:MOT_S).find(x=>x.v===sel.value); if(o) sel.parentNode.querySelector(".ayuda").innerHTML=esc(o.ay); };
-  const td=$("#f-tipodoc");
-  if(td && !esE) td.onchange=()=>{
-    const n=$("#f-nrodoc");
-    if(!n.value || /^(V|CA)-\d+$/.test(n.value))
-      n.value = td.value==="VALE" ? "V-"+String(S.meta.proxVale||21).padStart(4,"0")
-              : td.value==="CUA. ALM." ? "CA-"+String(S.meta.proxCua||1).padStart(4,"0") : "";
-  };
   pintaLineas(sentido);
 }
 
@@ -874,6 +900,8 @@ function guardarMov(sentido){
   if(!d.nroDoc) return toast("Falta el número del documento.",true);
   if(!esE && !d.autoriza) return toast("Falta AUTORIZA: quién mandó a pedir. Sin eso no se despacha.",true);
   if(!esE && !d.persona)  return toast("Falta ENTREGADO A: quién se lo llevó.",true);
+  /* en una salida el nombre se escribe a mano: si esa persona todavía no existe, se crea */
+  if(!esE && d.persona && !per(d.persona)) d.persona = personaOCrear(d.persona);
 
   const items = LIN.filter(l=>l.cod && nn(l.cant)>0).map(l=>{
     const o={cod:l.cod, cant:q2(l.cant)};
@@ -1195,7 +1223,7 @@ VISTAS.salidas = function(){
   const l=aplicaFiltros("S");
   const mes = FIL.mes||mesDe(hoy());
   const delMes = IX.movs.filter(m=>m.sentido==="S" && mesDe(m.fecha)===mes);
-  const conVale = delMes.filter(m=>m.tipoDoc==="VALE").length;
+  const conVale = delMes.filter(m=>m.tipoDoc==="NOTA DE SALIDA" || m.tipoDoc==="VALE").length;
   return `
   <div class="bloque">
     <h2>SALIDAS REGISTRADAS<span class="der">
