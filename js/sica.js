@@ -64,7 +64,7 @@ const TDOC_S = ["VALE","CUA. ALM.","NOTA DE SALIDA","ACTA DE RECONTEO"];
 
 /* Sube cada vez que se publica: sirve para saber si el equipo está viendo
    la última versión o una guardada en la memoria del navegador. */
-const VERSION = "28 · 01/10/2026 · web";
+const VERSION = "29 · 01/10/2026 · web";
 function toast(msg,mal){
   const t=$("#toast"); t.textContent=msg; t.hidden=false; t.classList.toggle("mal",!!mal);
   clearTimeout(toast._t); toast._t=setTimeout(()=>{t.hidden=true},3800);
@@ -499,6 +499,7 @@ function modal(tit,body,botones,ancho){
   const m=$(".modal"); m.style.width = ancho ? "min("+ancho+"px,100%)" : "";
   document.body.style.overflow="hidden";
   engancharCombos($("#m-body"));
+  ocultarProhibido($(".modal"));
   setTimeout(()=>{ const f=$("#m-body input:not([type=hidden]),#m-body select,#m-body textarea"); if(f) f.focus(); },60);
 }
 function cerrar(){ $("#velo").hidden=true; document.body.style.overflow=""; }
@@ -568,7 +569,10 @@ const MOD = [
   {k:"listas",   t:"Listas",         i:"⋮", g:4, sub:"Frentes de trabajo, proveedores, destinos y máquinas."},
   {k:"ajustes",  t:"Ajustes",        i:"⚒", g:4, sub:"Datos de obra, numeración, respaldo y cargas."}
 ];
-const TABS_MOVIL = ["tablero","guias","entradas","stock","kardex","__mas"];
+const TABS_ADMIN = ["tablero","guias","entradas","stock","kardex","__mas"];
+const TABS_APOYO = ["entradas","salidas","stock","conteo","__mas"];
+const TABS_MOVIL = TABS_ADMIN;   /* se deja por compatibilidad */
+const tabs = ()=> esAdmin() ? TABS_ADMIN : TABS_APOYO;
 
 /* ======================================================================
    QUIÉN ENTRÓ Y QUÉ PUEDE TOCAR
@@ -579,20 +583,47 @@ const TABS_MOVIL = ["tablero","guias","entradas","stock","kardex","__mas"];
    Esto es el candado de la pantalla. El candado de los datos está en
    Supabase (sql/01-estructura.sql) y los dos trabajan juntos.
    ====================================================================== */
-const MOD_APOYO = ["guias","stock","kardex"];
-/* lo único que el apoyo puede accionar */
-const ACC_APOYO = {};
-("guGuardar guModo guNueva guAgregar guQuita guArtNuevo guLimpiaBusca linAgrega linQuita "
-+"movAdd movVer resumenGuias pdfResumen csvMovs "
-+"impStock csvStock impKardex csvKardex verKardex "
-+"recargar revisar").split(/\s+/).forEach(a=>{ ACC_APOYO[a]=1; });
+/* Las pantallas que ve el apoyo de almacén. Dentro de cada una puede hacer
+   todo lo que la pantalla ofrece: registrar, corregir, anular e imprimir. */
+const MOD_APOYO = ["entradas","salidas","prestamos","horometro",
+                   "stock","conteo","inventario","catalogo"];
+
+/* Lo que NO puede tocar nadie más que el administrador. Se escribe al revés
+   —la lista de lo prohibido y no la de lo permitido— porque una acción que
+   se me olvide anotar tiene que dejar trabajar al apoyo, no trabarlo. Acá
+   solo entra lo que de verdad hay que cuidar: los ajustes y el respaldo, el
+   catálogo de personas, las listas maestras, los requerimientos y las
+   pantallas que el apoyo no ve. */
+const ACC_SOLO_ADMIN = {};
+(  /* ajustes, respaldo y talonario */
+   "ajGuardar ajNum ajTema ajSync ajRespaldo ajRestaurar ajSumar ajCopia ajFotos ajBorrar "
+ + "ajPlantCat ajPlantPer ajSubirCat ajSubirPer valePrueba valeSpec valePDF impTalonario "
+   /* cargar guía y todo lo que cuelga de esa pantalla */
+ + "guGuardar guModo guNueva guAgregar guQuita guArtNuevo guLimpiaBusca "
+ + "resumenGuias pdfResumen formalizar juntarSD juntarGuias unirPartes "
+   /* kardex, control diario, requerimientos */
+ + "verKardex impKardex csvKardex csvDiario impDiario "
+ + "reqNuevo reqVer reqEntrada reqDeMinimos "
+   /* personal, listas maestras y ubicación */
+ + "perNuevo perEditar csvPersonal listaAdd listaDel maqNueva maqEditar ubicarUno"
+).split(/\s+/).forEach(a=>{ ACC_SOLO_ADMIN[a]=1; });
 
 const rolActual = ()=> (window.NUBE && NUBE.sesion) ? NUBE.sesion.rol : "admin";
 const esAdmin   = ()=> rolActual()==="admin";
 const puedeVer  = k => esAdmin() || MOD_APOYO.indexOf(k)>=0;
-const puedeHacer= a => esAdmin() || !!ACC_APOYO[a];
+const puedeHacer= a => esAdmin() || !ACC_SOLO_ADMIN[a];
 const MODS      = ()=> MOD.filter(m=>puedeVer(m.k));
-const negado    = ()=> toast("Tu usuario es apoyo de almacén: solo puede registrar entradas.",true);
+const negado    = ()=> toast("Tu usuario es apoyo de almacén: esa parte la maneja el administrador.",true);
+
+/** Un botón que al tocarlo contesta «no tienes permiso» es peor que no
+    tenerlo: al apoyo no se le muestran. El guardia del despachador sigue
+    puesto igual, por si algo se cuela. */
+function ocultarProhibido(raiz){
+  if(esAdmin()) return;
+  const r = raiz || document;
+  $$("[data-acc]", r).forEach(e=>{ if(!puedeHacer(e.dataset.acc)) e.style.display="none"; });
+  $$("[data-ir]",  r).forEach(e=>{ if(!puedeVer(e.dataset.ir))    e.style.display="none"; });
+}
 let vistaActual="tablero";
 
 function alertas(){
@@ -619,8 +650,10 @@ function pintarNav(){
     const n=$("#nav"+g); if(!n) return;
     n.innerHTML = MODS().filter(m=>m.g===g).map(m=>
       `<button data-ir="${m.k}"${vistaActual===m.k?' aria-current="page"':''}>${m.t}${al[m.k]>0?`<span class="pip">${al[m.k]}</span>`:""}</button>`).join("");
+    /* al apoyo le quedan grupos vacíos: un título sin nada debajo se ve a medio hacer */
+    n.style.display = n.innerHTML ? "" : "none";
   });
-  $("#mtabs").innerHTML = TABS_MOVIL.filter(k=>k==="__mas"||puedeVer(k)).map(k=>{
+  $("#mtabs").innerHTML = tabs().filter(k=>k==="__mas"||puedeVer(k)).map(k=>{
     if(k==="__mas") return `<button data-ir="__mas"><i>⋯</i>Más</button>`;
     const m=MOD.find(x=>x.k===k);
     return `<button data-ir="${m.k}"${vistaActual===m.k?' aria-current="page"':''}><i>${m.i}</i>${m.t}${al[m.k]>0?`<span class="pip">${al[m.k]}</span>`:""}</button>`;
@@ -1457,6 +1490,7 @@ VISTAS.kardex = function(){
 
 function enganchaExtra(){
   engancharCombos(document);
+  ocultarProhibido(document);
   const k1=$("#kx-cod"); if(k1) k1.onchange=()=>{ KX.cod=k1.value; pintar(); };
   const k2=$("#kx-mes"); if(k2) k2.onchange=()=>{ KX.mes=k2.value; pintar(); };
   const a=$("#fs-clasif"); if(a) a.onchange=()=>{ FST.clasif=a.value; pintar(); };

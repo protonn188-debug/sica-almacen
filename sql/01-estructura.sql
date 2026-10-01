@@ -142,3 +142,64 @@ create policy "el apoyo corrige la semana" on public.dias
 --  LISTO. Ahora ve al paso 6 de la guía para crear los dos usuarios y
 --  marcarte a ti como administrador.
 -- ======================================================================
+-- ======================================================================
+--  PERMISOS DEL APOYO DE ALMACÉN — versión del 01/10/2026
+--  JVC Consultores y Ejecutores E.I.R.L. · C.P. San Francisco
+--
+--  QUÉ HACE
+--    Al apoyo se le abrieron más pantallas en el sistema (salidas,
+--    préstamos, horómetro, conteo, inventario y catálogo). Para que lo
+--    que carga ahí llegue de verdad a la nube, hay que abrirle también
+--    las reglas de seguridad. Si no se corre este archivo, el apoyo va a
+--    poder registrar en pantalla pero arriba va a decir «falta subir» y
+--    nadie más va a ver lo que cargó.
+--
+--  CÓMO SE USA
+--    Supabase → SQL Editor → New query → pegar todo → RUN.
+--    Se puede correr las veces que haga falta.
+--
+--  QUÉ SIGUE PROHIBIDO PARA EL APOYO
+--    · los requerimientos (los pide la obra, no el almacén)
+--    · tocar días de hace más de dos meses: un mes cerrado y firmado no
+--      se vuelve a abrir desde el celular del apoyo
+--    · borrar renglones: los errores se anulan desde el sistema, que deja
+--      rastro de quién y cuándo
+-- ======================================================================
+
+-- ---- almacen ----
+-- Se le suman PERSONAL (al despachar escribe el nombre de quien se lleva
+-- las cosas, y si es alguien nuevo el sistema lo crea) y CONTEOS (el
+-- inventario físico). Requerimientos y maquinaria siguen fuera.
+drop policy if exists "el apoyo escribe lo justo" on public.almacen;
+create policy "el apoyo escribe lo justo" on public.almacen
+  for insert to authenticated
+  with check (clave in ('catalogo','listas','meta','personal','conteos'));
+
+drop policy if exists "el apoyo actualiza lo justo" on public.almacen;
+create policy "el apoyo actualiza lo justo" on public.almacen
+  for update to authenticated
+  using      (clave in ('catalogo','listas','meta','personal','conteos'))
+  with check (clave in ('catalogo','listas','meta','personal','conteos'));
+
+-- ---- dias ----
+-- La ventana pasa de 7 días a 60: el conteo físico y las notas atrasadas
+-- no entran en una semana. Más atrás de eso, lo carga el administrador.
+drop policy if exists "el apoyo carga la semana" on public.dias;
+drop policy if exists "el apoyo carga lo reciente" on public.dias;
+create policy "el apoyo carga lo reciente" on public.dias
+  for insert to authenticated
+  with check (fecha between (current_date - interval '60 days') and (current_date + interval '1 day'));
+
+drop policy if exists "el apoyo corrige la semana" on public.dias;
+drop policy if exists "el apoyo corrige lo reciente" on public.dias;
+create policy "el apoyo corrige lo reciente" on public.dias
+  for update to authenticated
+  using      (fecha between (current_date - interval '60 days') and (current_date + interval '1 day'))
+  with check (fecha between (current_date - interval '60 days') and (current_date + interval '1 day'));
+
+-- ---- comprobación ----
+-- Después de RUN, abajo tienen que salir estas cuatro reglas del apoyo.
+select policyname, cmd
+from pg_policies
+where schemaname = 'public' and policyname like 'el apoyo%'
+order by tablename, policyname;
