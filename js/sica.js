@@ -64,7 +64,7 @@ const TDOC_S = ["VALE","CUA. ALM.","NOTA DE SALIDA","ACTA DE RECONTEO"];
 
 /* Sube cada vez que se publica: sirve para saber si el equipo está viendo
    la última versión o una guardada en la memoria del navegador. */
-const VERSION = "24 · 27/09/2026 · web";
+const VERSION = "27 · 01/10/2026 · web";
 function toast(msg,mal){
   const t=$("#toast"); t.textContent=msg; t.hidden=false; t.classList.toggle("mal",!!mal);
   clearTimeout(toast._t); toast._t=setTimeout(()=>{t.hidden=true},3800);
@@ -314,6 +314,149 @@ function optCatalogo(val,filtro){
   return opts(l,val);
 }
 
+/* ---------- buscador de artículos ----------------------------------------
+   El desplegable de siempre obliga a bajar por doscientos artículos de uno
+   en uno, y en el celular ni siquiera deja escribir. Esto es una cajita
+   donde se escribe y la lista se va achicando sola: "clavo 3" encuentra
+   CLAVO C/CABEZA 3". Busca por nombre y por código, no le importan las
+   tildes ni el orden de las palabras, y muestra el saldo al lado para no
+   despachar lo que no hay.
+
+   El código elegido queda en un input escondido con el mismo id o la misma
+   clase que tenía el desplegable, así que todo lo que ya leía ese valor
+   sigue funcionando sin tocarse. ------------------------------------------ */
+const sinTil = t => String(t||"").toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/Ñ/g,"N");
+
+function artBuscar(txt, filtro, tope){
+  const lista = S.catalogo.items.filter(i=>i.activo!==false && (!filtro||filtro(i)));
+  const porCod = (a,b)=> String(a.cod)<String(b.cod)?-1:1;
+  const q = sinTil(txt).trim();
+  if(!q) return lista.sort(porCod).slice(0, tope||80);
+  const pal = q.split(/\s+/);
+  const nota = i=>{
+    const d=sinTil(i.desc), c=sinTil(i.cod);
+    if(!pal.every(p=>d.includes(p)||c.includes(p))) return -1;   /* todas las palabras, en cualquier orden */
+    let p=0;
+    if(c===q) p+=1000;
+    if(d===q) p+=900;
+    if(d.startsWith(q)) p+=500;
+    if(c.startsWith(q)) p+=300;
+    if(saldo(i.cod)>0) p+=40;                                     /* lo que sí hay, primero */
+    return p + Math.max(0, 120-d.length);
+  };
+  return lista.map(i=>({i,p:nota(i)})).filter(x=>x.p>=0)
+              .sort((a,b)=> b.p-a.p || porCod(a.i,b.i))
+              .map(x=>x.i).slice(0, tope||80);
+}
+const artRotulo = it => it ? it.cod+" · "+it.desc : "";
+
+/** La cajita. `ref` es "#id" o ".clase", el mismo con el que el resto del
+    sistema lee el artículo elegido. */
+function comboArt(ref, cod, ix){
+  const it = cat(cod);
+  const attr = (ref.charAt(0)==="#" ? `id="${ref.slice(1)}"` : `class="${ref.slice(1)}"`)
+             + (ix!=null ? ` data-ix="${ix}"` : "");
+  return `<div class="combo">
+    <input type="hidden" ${attr} value="${esc(cod||"")}">
+    <input class="combo-txt" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+           placeholder="Escribe el nombre o el código…" value="${esc(artRotulo(it))}">
+    <div class="combo-lista" hidden></div>
+  </div>`;
+}
+
+function engancharCombos(raiz){
+  $$(".combo", raiz||document).forEach(c=>{
+    if(c.dataset.listo) return;
+    c.dataset.listo="1";
+    const oculto = c.querySelector("input[type=hidden]");
+    const txt    = c.querySelector(".combo-txt");
+    const lis    = c.querySelector(".combo-lista");
+    if(!oculto||!txt||!lis) return;
+    let halla=[], marca=-1;
+
+    /* la lista va suelta sobre la pantalla: así no la recorta el modal ni la tabla.
+       Se abre hacia abajo si hay sitio y hacia arriba si no, y nunca más alta
+       que el hueco que le queda: en el celular, con el teclado abierto, el hueco
+       es poco y la lista se tiene que achicar, no desbordarse. */
+    const colocar = ()=>{
+      const r=txt.getBoundingClientRect(), m=8, tope=Math.round(innerHeight*0.46);
+      const abajo=innerHeight-r.bottom-m, arriba=r.top-m;
+      const vaAbajo = abajo>=Math.min(tope,200) || abajo>=arriba;
+      const hueco = vaAbajo ? abajo : arriba;
+      const alto = Math.max(110, Math.min(tope, hueco));
+      const ancho = Math.min(r.width, innerWidth-12);
+      lis.style.maxHeight = alto+"px";
+      lis.style.width = ancho+"px";
+      lis.style.left = Math.max(6, Math.min(r.left, innerWidth-ancho-6))+"px";
+      if(vaAbajo){
+        lis.style.top = Math.min(r.bottom+3, Math.max(m, innerHeight-alto-m))+"px";
+        lis.style.bottom = "auto";
+      } else {
+        lis.style.bottom = Math.min(innerHeight-r.top+3, Math.max(m, innerHeight-alto-m))+"px";
+        lis.style.top = "auto";
+      }
+    };
+    const cerrarLista = ()=>{
+      lis.hidden=true; marca=-1;
+      removeEventListener("scroll",colocar,true); removeEventListener("resize",colocar);
+    };
+    const pinta = ()=>{
+      halla = artBuscar(txt.value);
+      lis.innerHTML = halla.length
+        ? halla.map((i,n)=>{
+            const s=saldo(i.cod);
+            return `<div class="combo-op${n===marca?" sel":""}" data-n="${n}">
+              <span class="c">${esc(i.cod)}</span>
+              <span class="d">${esc(i.desc)}</span>
+              <span class="s${s<=0?" cero":""}">${fmt(s)} ${esc(i.uni)}</span>
+            </div>`;
+          }).join("")
+        : `<div class="combo-nada"><b>No hay ningún artículo que se llame así.</b>
+             Prueba con una sola palabra — por ejemplo <b>clavo</b> en vez de <i>clavo de 3 pulgadas</i>.</div>`;
+      lis.hidden=false; colocar();
+      addEventListener("scroll",colocar,true); addEventListener("resize",colocar);
+    };
+    const elegir = n=>{
+      const it=halla[n]; if(!it) return;
+      oculto.value=it.cod; txt.value=artRotulo(it); cerrarLista();
+      oculto.dispatchEvent(new Event("change",{bubbles:true}));
+    };
+    const mover = d=>{
+      if(lis.hidden) return pinta();
+      marca = Math.max(0, Math.min(halla.length-1, marca+d));
+      $$(".combo-op",lis).forEach((e,n)=>e.classList.toggle("sel", n===marca));
+      const s=lis.querySelector(".combo-op.sel"); if(s) s.scrollIntoView({block:"nearest"});
+    };
+
+    txt.addEventListener("focus", ()=>{ txt.select(); marca=-1; pinta(); });
+    txt.addEventListener("input", ()=>{ marca=-1; pinta(); });
+    txt.addEventListener("keydown", e=>{
+      if(e.key==="ArrowDown"){ e.preventDefault(); mover(1); }
+      else if(e.key==="ArrowUp"){ e.preventDefault(); mover(-1); }
+      else if(e.key==="Enter" && !lis.hidden){ e.preventDefault(); elegir(marca<0?0:marca); }
+      else if(e.key==="Escape"){ cerrarLista(); txt.blur(); }
+    });
+    /* si se va sin elegir, se repone lo que estaba: no se queda a medio escribir */
+    txt.addEventListener("blur", ()=>setTimeout(()=>{
+      cerrarLista();
+      if(!txt.value.trim()){
+        if(oculto.value){ oculto.value=""; oculto.dispatchEvent(new Event("change",{bubbles:true})); }
+        return;
+      }
+      txt.value = artRotulo(cat(oculto.value));
+    },150));
+    /* pointerdown y no click: tiene que ganarle al blur, si no se cierra sin elegir */
+    lis.addEventListener("pointerdown", e=>{
+      const op=e.target.closest(".combo-op"); if(!op) return;
+      e.preventDefault(); elegir(+op.dataset.n);
+    });
+    if(oculto.id){
+      const lb=document.querySelector('label[for="'+oculto.id+'"]');
+      if(lb) lb.addEventListener("click", e=>{ e.preventDefault(); txt.focus(); });
+    }
+  });
+}
+
 /* ---------- modal ---------- */
 function modal(tit,body,botones,ancho){
   $("#m-tit").textContent=tit; $("#m-body").innerHTML=body;
@@ -327,6 +470,7 @@ function modal(tit,body,botones,ancho){
   $("#velo").hidden=false;
   const m=$(".modal"); m.style.width = ancho ? "min("+ancho+"px,100%)" : "";
   document.body.style.overflow="hidden";
+  engancharCombos($("#m-body"));
   setTimeout(()=>{ const f=$("#m-body input:not([type=hidden]),#m-body select,#m-body textarea"); if(f) f.focus(); },60);
 }
 function cerrar(){ $("#velo").hidden=true; document.body.style.overflow=""; }
@@ -580,7 +724,7 @@ function lineasHTML(sentido){
   const filas = LIN.map((l,ix)=>{
     const it = cat(l.cod);
     return `<tr data-ix="${ix}">
-      <td data-r="ARTÍCULO"><select class="l-cod" data-ix="${ix}">${optCatalogo(l.cod)}</select>
+      <td data-r="ARTÍCULO">${comboArt(".l-cod", l.cod, ix)}
         <span class="uni">${it?esc(it.uni)+" · saldo "+fmt(saldo(it.cod)):"—"}</span></td>
       ${esE?`<td class="q n" data-r="SEGÚN GUÍA"><input class="l-guia" data-ix="${ix}" inputmode="decimal" value="${l.guia!=null&&l.guia!==""?esc(l.guia):""}" placeholder="—"></td>`:""}
       <td class="q n" data-r="${esE?"RECIBIDO DE VERDAD":"CANTIDAD"}"><input class="l-cant" data-ix="${ix}" inputmode="decimal" value="${l.cant!=null&&l.cant!==""?esc(l.cant):""}"></td>
@@ -600,7 +744,12 @@ function lineasHTML(sentido){
 function pintaLineas(sentido){
   const c=$("#zona-lineas"); if(!c) return;
   c.innerHTML=lineasHTML(sentido);
-  $$(".l-cod",c).forEach(e=>{ e.onchange=()=>{ leerLineas(); pintaLineas(sentido); }; });
+  $$(".l-cod",c).forEach(e=>{ e.onchange=()=>{
+    const ix=e.dataset.ix;
+    leerLineas(); pintaLineas(sentido);
+    const q=$(`.l-cant[data-ix="${ix}"]`); if(q){ q.focus(); q.select(); }
+  }; });
+  engancharCombos(c);
 }
 ACC.linAgrega = ()=>{ LIN.push({cod:"",cant:"",precio:"",guia:""}); pintaLineas($("#f-sentido").value); };
 ACC.linQuita  = d=>{ LIN.splice(+d.ix,1); pintaLineas($("#f-sentido").value); };
@@ -1216,7 +1365,7 @@ VISTAS.kardex = function(){
   const meses = Array.from(new Set(IX.movs.map(m=>mesDe(m.fecha)))).sort().reverse();
   const sel = `<div class="bloque"><h2>ELIGE EL ARTÍCULO</h2><div class="pad">
     <div class="campos">
-      ${campo("kx-cod","ARTÍCULO","Escribe el código o parte del nombre para encontrarlo.",`<select id="kx-cod">${optCatalogo(KX.cod)}</select>`)}
+      ${campo("kx-cod","ARTÍCULO","Escribe parte del nombre o el código y la lista se va achicando sola.",comboArt("#kx-cod", KX.cod))}
       ${campo("kx-mes","PERIODO","Déjalo en «Todo» para ver la historia completa desde que abrió el almacén.",
         `<select id="kx-mes"><option value="">Todo el kardex</option>${meses.map(x=>`<option value="${x}"${KX.mes===x?" selected":""}>${nomMes(x)}</option>`).join("")}</select>`)}
     </div>
@@ -1279,6 +1428,7 @@ VISTAS.kardex = function(){
 };
 
 function enganchaExtra(){
+  engancharCombos(document);
   const k1=$("#kx-cod"); if(k1) k1.onchange=()=>{ KX.cod=k1.value; pintar(); };
   const k2=$("#kx-mes"); if(k2) k2.onchange=()=>{ KX.mes=k2.value; pintar(); };
   const a=$("#fs-clasif"); if(a) a.onchange=()=>{ FST.clasif=a.value; pintar(); };
@@ -3706,6 +3856,7 @@ VISTAS.ajustes = function(){
     ])}
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="b" data-acc="ajRespaldo">Descargar respaldo</button>
+      <button class="b sec" data-acc="ajSumar">Cargar un archivo SIN borrar lo de ahora</button>
       <button class="b sec" data-acc="ajRestaurar">Restaurar desde un respaldo</button>
       ${DB?`<button class="b sec" data-acc="ajSync">Sincronizar con la nube</button>`:""}
     </div>
@@ -3785,6 +3936,124 @@ ACC.ajRestaurar = ()=>{
       }catch(e){ toast("Ese archivo no es un respaldo válido.",true); }
     }), "Restaurar", true);
 };
+/* ---------- cargar un archivo SIN borrar lo que ya hay ----------
+   "Restaurar" reemplaza todo y sirve cuando se perdió el equipo. Esto es lo
+   contrario: se usa cuando ya estás trabajando y te llega un archivo con más
+   guías. Nada de lo que ya está se toca; solo se agrega lo que falta.
+   Una guía ya cargada NO se vuelve a cargar: se reconoce por tipo + número
+   + fecha, que es como la reconocería cualquiera mirando el papel. --------- */
+function normDesc(t){ return String(t||"").trim().toUpperCase().replace(/\s+/g," "); }
+
+function fusionar(d){
+  const r = {arts:0, artsYa:0, movs:0, movsYa:0, reqs:0, reqsYa:0, per:0, dias:{}};
+
+  /* --- personal: se reconoce por DNI, y si no hay DNI, por el nombre --- */
+  const mapaPer = {};
+  (d.personal && d.personal.items || []).forEach(o=>{
+    const dni=String(o.dni||"").trim();
+    let x = dni ? S.personal.items.find(q=>String(q.dni||"").trim()===dni) : null;
+    if(!x) x = S.personal.items.find(q=>normDesc(q.nombres+" "+q.apellidos)===normDesc(o.nombres+" "+o.apellidos));
+    if(!x){ x=Object.assign({},o,{id:uid("pe")}); S.personal.items.push(x); r.per++; }
+    mapaPer[o.id]=x.id;
+  });
+
+  /* --- catálogo: se reconoce por la descripción, que es lo que lee la gente.
+         Si el artículo ya existe se reusa su código; si no, nace uno nuevo. --- */
+  const mapaCod = {};
+  (d.catalogo && d.catalogo.items || []).forEach(o=>{
+    const x = S.catalogo.items.find(q=>normDesc(q.desc)===normDesc(o.desc));
+    if(x){ mapaCod[o.cod]=x.cod; r.artsYa++; return; }
+    const tipo = tipoDeClasif(o.clasif);
+    const nuevo = Object.assign({}, o, {id:uid("it"), cod:codigoProvisional(tipo)});
+    if(nuevo.retorna===undefined) delete nuevo.retorna;
+    S.catalogo.items.push(nuevo);
+    mapaCod[o.cod]=nuevo.cod; r.arts++;
+  });
+
+  /* --- listas: se juntan sin repetir --- */
+  Object.keys(d.listas||{}).forEach(k=>{
+    if(k==="_ts" || !Array.isArray(d.listas[k])) return;
+    d.listas[k].forEach(v=>sumaLista(k,v));
+  });
+
+  /* --- movimientos: uno por uno, saltando los que ya están --- */
+  const yaHay = f => (S.dias[f] && S.dias[f].movs || []);
+  Object.keys(d.dias||{}).sort().forEach(f=>{
+    (d.dias[f].movs||[]).forEach(m=>{
+      const igual = yaHay(f).some(q =>
+        String(q.tipoDoc||"").toUpperCase()===String(m.tipoDoc||"").toUpperCase() &&
+        String(q.nroDoc ||"").toUpperCase()===String(m.nroDoc ||"").toUpperCase() &&
+        q.sentido===m.sentido);
+      if(igual){ r.movsYa++; return; }
+      const o = Object.assign({}, m, {
+        id: uid("mv"),
+        persona: mapaPer[m.persona] || m.persona || "",
+        autoriza: mapaPer[m.autoriza] || m.autoriza || "",
+        items: (m.items||[]).map(l=>Object.assign({}, l, {cod: mapaCod[l.cod] || l.cod}))
+      });
+      o.items = o.items.filter(l=>cat(l.cod));
+      if(!o.items.length){ r.movsYa++; return; }
+      dia(f).movs.push(o); r.movs++; r.dias[f]=1;
+    });
+  });
+
+  /* --- requerimientos: se reconocen por su número --- */
+  (d.requerimientos && d.requerimientos.items || []).forEach(q=>{
+    const num = normDesc(q.n).replace(/^R-?/,"");
+    if(S.requerimientos.items.some(x=>normDesc(x.n).replace(/^R-?/,"")===num)){ r.reqsYa++; return; }
+    S.requerimientos.items.push(Object.assign({}, q, {
+      id: uid("rq"),
+      autoriza: mapaPer[q.autoriza] || q.autoriza || "",
+      items: (q.items||[]).map(l=>Object.assign({}, l, {cod: mapaCod[l.cod] || l.cod})).filter(l=>cat(l.cod))
+    }));
+    r.reqs++;
+  });
+  const mayor = S.requerimientos.items.reduce((a,x)=>Math.max(a, parseInt(String(x.n).replace(/\D/g,""),10)||0), 0);
+  if(mayor >= nn(S.meta.proxReq)) S.meta.proxReq = mayor+1;
+
+  return r;
+}
+
+ACC.ajSumar = ()=>{
+  confirmar("Cargar sin borrar",
+    "Se le <b>suma</b> al almacén lo que trae el archivo. Nada de lo que ya tienes se borra ni se cambia.<br><br>"+
+    "Las guías que ya estén cargadas <b>no se repiten</b>: se reconocen por su tipo y su número. "+
+    "Los artículos que ya existan se reusan por su descripción, así que no se duplica el catálogo.<br><br>"+
+    "Aun así, descarga primero un respaldo. Es un minuto.",
+    ()=>pedirArchivo(".json,application/json", txt=>{
+      let d; try{ d=JSON.parse(txt); }catch(e){ return toast("Ese archivo no se puede leer.",true); }
+      if(!d || !d.meta) return toast("Ese archivo no es un respaldo del almacén.",true);
+      let r; try{ r=fusionar(d); }
+      catch(e){ anotarFalla(e,"fusionar"); return toast("No se pudo cargar: "+e.message,true); }
+      guardarLocal(); indexar(); pintar();
+      /* se sube de a uno, no todo de golpe: en la obra el internet es flojo
+         y 24 subidas al mismo tiempo se caen a la mitad. */
+      (async()=>{
+        toast("Guardado aquí. Subiendo a la nube…");
+        for(const k of LLAVES) await subir(k);
+        for(const f of Object.keys(r.dias).sort()) await subirDia(f);
+        avisoCarga(r);
+      })();
+    }), "Cargar sin borrar");
+};
+
+function avisoCarga(r){
+  modal("Lo que entró", `
+    ${expl("Ya está cargado",[
+      "Abajo está lo que se agregó y lo que ya estaba. Si algo no cuadra, en Ajustes tienes el respaldo para volver atrás.",
+      "Revisa el kardex y el stock antes de seguir trabajando."
+    ])}
+    <table class="t"><thead><tr><th>QUÉ</th><th class="der">SE AGREGÓ</th><th class="der">YA ESTABA</th></tr></thead>
+    <tbody>
+      <tr><td>Artículos del catálogo</td><td class="der mono">${r.arts}</td><td class="der mono">${r.artsYa}</td></tr>
+      <tr><td>Guías y movimientos</td><td class="der mono">${r.movs}</td><td class="der mono">${r.movsYa}</td></tr>
+      <tr><td>Requerimientos</td><td class="der mono">${r.reqs}</td><td class="der mono">${r.reqsYa}</td></tr>
+      <tr><td>Personas</td><td class="der mono">${r.per}</td><td class="der mono">—</td></tr>
+    </tbody></table>`,
+    [{t:"Listo",fn:cerrar}], 620);
+  toast(`Cargado: ${r.movs} movimientos y ${r.arts} artículos nuevos.`);
+}
+
 ACC.ajFotos = ()=>{
   const corte=new Date(Date.now()-90*864e5).toISOString().slice(0,10);
   let n=0;
@@ -4260,8 +4529,8 @@ function abreAgregar(m){
       "Si le pones otra fecha, la guía queda partida en dos partes, una por día, como manda el kardex."
     ])}
     <div class="campos">
-      ${campo("ag-art","QUÉ ARTÍCULO","Si no aparece en la lista, créalo con el botón de abajo.",
-        `<select id="ag-art">${optCatalogo(AGR.cod)}</select>`)}
+      ${campo("ag-art","QUÉ ARTÍCULO","Escribe parte del nombre para encontrarlo. Si no existe, créalo con el botón de abajo.",
+        comboArt("#ag-art", AGR.cod))}
       ${campo("ag-cant","CANTIDAD RECIBIDA","Lo que de verdad entró al almacén.",
         `<input id="ag-cant" class="mono" inputmode="decimal" value="${esc(AGR.cant)}">`)}
       ${campo("ag-precio","PRECIO UNITARIO","Opcional. Solo si la guía lo trae.",

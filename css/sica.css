@@ -336,6 +336,27 @@ table.lin .uni{font-family:var(--f-mono); font-size:13.5px; color:var(--texto-2)
   table.lin td.x{position:absolute; top:6px; right:6px; width:auto}
 }
 
+/* buscador de artículos */
+.combo{position:relative}
+.combo .combo-txt{width:100%; box-sizing:border-box}
+.combo-lista{position:fixed; z-index:95; background:var(--papel); border:1px solid var(--regla-fuerte);
+  border-radius:var(--r); box-shadow:0 14px 38px rgba(0,0,0,.28); overflow-y:auto; padding:4px;
+  -webkit-overflow-scrolling:touch; overscroll-behavior:contain}
+.combo-lista[hidden]{display:none}
+.combo-op{display:flex; gap:10px; align-items:baseline; padding:9px 10px; min-height:44px;
+  cursor:pointer; border-radius:6px; line-height:1.3}
+.combo-op:hover,.combo-op.sel{background:var(--papel-2)}
+.combo-op .c{font-family:var(--f-mono); font-size:12.5px; color:var(--texto-2); flex:0 0 auto; min-width:52px}
+.combo-op .d{flex:1 1 auto; font-size:15px; min-width:0}
+.combo-op .s{font-family:var(--f-mono); font-size:12.5px; color:var(--texto-2); flex:0 0 auto; white-space:nowrap}
+.combo-op .s.cero{color:var(--sello); font-weight:700}
+.combo-nada{padding:12px 11px; color:var(--texto-2); font-size:14px; line-height:1.45}
+@media (max-width:700px){
+  .combo-op{flex-wrap:wrap; gap:2px 10px}
+  .combo-op .d{flex:1 1 100%; order:1; font-size:15.5px}
+  .combo-op .c{order:2} .combo-op .s{order:3; margin-left:auto}
+}
+
 /* matriz CONTROL DIARIO */
 .mz-env{overflow:auto; max-height:72vh; border:1px solid var(--regla); border-radius:var(--r); background:var(--papel); -webkit-overflow-scrolling:touch}
 table.mz{border-collapse:separate; border-spacing:0; font-size:13px; font-family:var(--f-mono)}
